@@ -78,19 +78,35 @@ async def leave(ctx):
 
 
 # Playlist
+has_playlist = False
 @client.command()
 async def new_playlist(ctx, *, playlist_name):
+    global has_playlist
     author = ctx.message.author
     guild = ctx.guild
-    file = open(f'Playlists/{guild}/{author}/{playlist_name}.json')
-    file.close()
-    await ctx.send(f'New Playlist created \"{playlist_name}\"')
+    if not os.path.exists(f'Playlists/{guild}/{author}'):
+        os.makedirs(f'Playlists/{guild}/{author}')
+    try:
+        with open(f'Playlists/{guild}/{author}/{playlist_name}.json', 'x'):
+            await ctx.send(f'New playlist \"{playlist_name}\" created')
+    except FileExistsError:
+        await ctx.send('The playlist {0} already exists, Try a new name'.format(playlist_name))
+    has_playlist = True
 
 @client.command()
 async def del_playlist(ctx, *, playlist_name):
     author = ctx.message.author
-    with open(f'Playlists/{author}/{playlist_name}.json', encoding='utf-8'):
-        os.remove(f"Playlists/{author}/{playlist_name}.json")
+    guild = ctx.guild
+    os.remove(f'Playlists/{guild}/{author}/{playlist_name}.json')
+    await ctx.send(f'Playlist \"{playlist_name}\" deleted')
+
+@client.command()
+async def playlist(ctx, *, playlist_name):
+    author = ctx.message.author
+    guild = ctx.guild
+    with open(f'Playlists/{guild}/{author}/{playlist_name}.json', 'r') as file:
+        data = json.load(file)
+        await ctx.send(f'{playlist_name}: \n{data}')
 
 load_dotenv()
 client.run(os.getenv('VOICE_BOT_TOKEN'))
