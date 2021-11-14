@@ -7,6 +7,7 @@ import json
 
 client = commands.Bot(command_prefix='!')
 
+
 @client.event
 async def on_ready():
     print('Bot connected to server!')
@@ -40,6 +41,7 @@ async def play(ctx, url: str):
         source = await discord.FFmpegOpusAudio.from_probe(url2, **FFMPEG_OPTIONS)
         vc.play(source)
 
+
 @client.command()
 async def pause(ctx):
     voice_client = discord.utils.get(client.voice_clients, guild=ctx.guild)
@@ -48,6 +50,7 @@ async def pause(ctx):
         await ctx.send('Audio Paused!')
     else:
         await ctx.send('The audio is not currently playing!')
+
 
 @client.command()
 async def resume(ctx):
@@ -58,17 +61,20 @@ async def resume(ctx):
     else:
         await ctx.send('The audio is not currently paused!')
 
+
 @client.command()
 async def stop(ctx):
     voice_client = discord.utils.get(client.voice_clients, guild=ctx.guild)
     voice_client.stop()
     await ctx.send('Audio Stopped!')
 
+
 # Handling Errors
 @client.event
 async def on_command_error(ctx, error):
     if isinstance(error, commands.CommandNotFound):
         await ctx.send('Invalid command')
+
 
 @client.command(pass_context=True)
 async def leave(ctx):
@@ -78,12 +84,11 @@ async def leave(ctx):
 
 
 # Playlist
-has_playlist = False
 @client.command()
-async def new_playlist(ctx, *, playlist_name):
-    global has_playlist
+async def new_playlist(ctx, *, playlist_name: str):
     author = ctx.message.author
     guild = ctx.guild
+    playlist_name = playlist_name.replace(' ', '_')
     if not os.path.exists(f'Playlists/{guild}/{author}'):
         os.makedirs(f'Playlists/{guild}/{author}')
     try:
@@ -91,22 +96,63 @@ async def new_playlist(ctx, *, playlist_name):
             await ctx.send(f'New playlist \"{playlist_name}\" created')
     except FileExistsError:
         await ctx.send('The playlist {0} already exists, Try a new name'.format(playlist_name))
-    has_playlist = True
 
 @client.command()
-async def del_playlist(ctx, *, playlist_name):
+async def del_playlist(ctx, *, playlist_name: str):
     author = ctx.message.author
     guild = ctx.guild
+    playlist_name = playlist_name.replace(' ', '_')
     os.remove(f'Playlists/{guild}/{author}/{playlist_name}.json')
     await ctx.send(f'Playlist \"{playlist_name}\" deleted')
 
 @client.command()
-async def playlist(ctx, *, playlist_name):
+async def playlist(ctx, *, playlist_name: str):
     author = ctx.message.author
     guild = ctx.guild
+    playlist_name = playlist_name.replace(' ', '_')
     with open(f'Playlists/{guild}/{author}/{playlist_name}.json', 'r') as file:
         data = json.load(file)
         await ctx.send(f'{playlist_name}: \n{data}')
+
+@client.command()
+async def my_playlists(ctx):
+    author = ctx.message.author
+    guild = ctx.guild
+    playlists = os.listdir(f'Playlists/{guild}/{author}/')
+    await ctx.send(f'{ctx.message.author}\'s playlists:')
+    index = 1
+    for items in playlists:
+        name, ext = items.split('.')
+        await ctx.send(f'{index}--{name}')
+        index += 1
+
+@client.command()
+async def add_item(ctx, playlist_name, item_name, item_url):
+    author = ctx.message.author
+    guild = ctx.guild
+    try:
+        with open(f'Playlists/{guild}/{author}/{playlist_name}.json', 'r') as f:
+            json_obj = json.load(f)
+            json_obj[item_name] = item_url
+        with open(f'Playlists/{guild}/{author}/{playlist_name}.json', 'w') as f:
+            json.dump(json_obj, f)
+        await ctx.send(f'New item added to the playlist \"{playlist_name}\"')
+    except FileNotFoundError:
+        await ctx.send(f'\"{playlist_name}\" Playlist does not exists!')
+
+@client.command()
+async def remove_item(ctx, playlist_name, item_name):
+    author = ctx.message.author
+    guild = ctx.guild
+    try:
+        with open(f'Playlists/{guild}/{author}/{playlist_name}.json', 'r') as f:
+            json_obj = json.load(f)
+            json_obj.pop(item_name)
+        with open(f'Playlists/{guild}/{author}/{playlist_name}.json', 'w') as f:
+            json.dump(json_obj, f)
+        await ctx.send(f'Item removed from the playlist \"{playlist_name}\"')
+    except FileNotFoundError:
+        await ctx.saend(f'\"{playlist_name}\" does not exists!')
 
 load_dotenv()
 client.run(os.getenv('VOICE_BOT_TOKEN'))
