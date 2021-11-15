@@ -28,11 +28,13 @@ async def join(ctx):
 
 
 # -------------------Playing Audio from Youtube URL-------------------
+FFMPEG_OPTIONS = {"before_options": "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5", "options": "-vn"}
+YDL_OPTIONS = {"format": "bestaudio"}
 @client.command()
-async def play(ctx, url: str):
+async def play(ctx, url):
+    global FFMPEG_OPTIONS
+    global YDL_OPTIONS
     ctx.voice_client.stop()
-    FFMPEG_OPTIONS = {"before_options": "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5", "options": "-vn"}
-    YDL_OPTIONS = {"format": "bestaudio"}
     vc = ctx.voice_client
 
     with youtube_dl.YoutubeDL(YDL_OPTIONS) as ydl:
@@ -40,7 +42,6 @@ async def play(ctx, url: str):
         url2 = info['formats'][0]['url']
         source = await discord.FFmpegOpusAudio.from_probe(url2, **FFMPEG_OPTIONS)
         vc.play(source)
-
 
 @client.command()
 async def pause(ctx):
@@ -51,7 +52,6 @@ async def pause(ctx):
     else:
         await ctx.send('The audio is not currently playing!')
 
-
 @client.command()
 async def resume(ctx):
     voice_client = discord.utils.get(client.voice_clients, guild=ctx.guild)
@@ -61,13 +61,11 @@ async def resume(ctx):
     else:
         await ctx.send('The audio is not currently paused!')
 
-
 @client.command()
 async def stop(ctx):
     voice_client = discord.utils.get(client.voice_clients, guild=ctx.guild)
     voice_client.stop()
     await ctx.send('Audio Stopped!')
-
 
 # Handling Errors
 @client.event
@@ -75,13 +73,11 @@ async def on_command_error(ctx, error):
     if isinstance(error, commands.CommandNotFound):
         await ctx.send('Invalid command')
 
-
 @client.command(pass_context=True)
 async def leave(ctx):
     if ctx.author.voice.channel and ctx.author.voice.channel == ctx.voice_client.channel:
         await ctx.voice_client.disconnect()
         await ctx.send('Bot successfully disconnected from the voice channel')
-
 
 # Playlist
 @client.command()
@@ -92,7 +88,8 @@ async def new_playlist(ctx, *, playlist_name: str):
     if not os.path.exists(f'Playlists/{guild}/{author}'):
         os.makedirs(f'Playlists/{guild}/{author}')
     try:
-        with open(f'Playlists/{guild}/{author}/{playlist_name}.json', 'x'):
+        with open(f'Playlists/{guild}/{author}/{playlist_name}.json', 'x') as f:
+            f.write('{\n\n}')
             await ctx.send(f'New playlist \"{playlist_name}\" created')
     except FileExistsError:
         await ctx.send('The playlist {0} already exists, Try a new name'.format(playlist_name))
@@ -131,11 +128,15 @@ async def add_item(ctx, playlist_name, item_name, item_url):
     author = ctx.message.author
     guild = ctx.guild
     try:
-        with open(f'Playlists/{guild}/{author}/{playlist_name}.json', 'r') as f:
-            json_obj = json.load(f)
-            json_obj[item_name] = item_url
-        with open(f'Playlists/{guild}/{author}/{playlist_name}.json', 'w') as f:
-            json.dump(json_obj, f)
+        a_file = open(f'Playlists/{guild}/{author}/{playlist_name}.json', 'r')
+        json_obj = json.load(a_file)
+        a_file.close()
+
+        json_obj[item_name] = item_url
+        a_file = open(f'Playlists/{guild}/{author}/{playlist_name}.json', 'w')
+        json.dump(json_obj, a_file)
+        a_file.close()
+
         await ctx.send(f'New item added to the playlist \"{playlist_name}\"')
     except FileNotFoundError:
         await ctx.send(f'\"{playlist_name}\" Playlist does not exists!')
@@ -153,6 +154,25 @@ async def remove_item(ctx, playlist_name, item_name):
         await ctx.send(f'Item removed from the playlist \"{playlist_name}\"')
     except FileNotFoundError:
         await ctx.saend(f'\"{playlist_name}\" does not exists!')
+
+play_all = []
+@client.command()
+async def playlist_play_all(ctx, playlist_name):
+    author = ctx.message.author
+    guild = ctx.guild
+    try:
+        if not ctx.message.author.voice.channel:
+            await ctx.send('Please join a voice channel')
+        else:
+            with open(f'Playlists/{guild}/{author}/{playlist_name}.json', 'r') as f:
+                json_obj = json.load(f)
+                urls = json_obj.values()
+                names = json_obj.keys()
+                for index, url in enumerate(urls):
+                    await play(ctx, url)
+
+    except FileNotFoundError:
+        await ctx.send(f'\"{playlist_name}\" playlist does not exists')
 
 load_dotenv()
 client.run(os.getenv('VOICE_BOT_TOKEN'))
